@@ -1,0 +1,21 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "Khai báo",
+  "steps": [
+    {
+      "file": "src/columnresizing.ts",
+      "description": "thuộc tính",
+      "line": 64
+    },
+    {
+      "file": "src/columnresizing.ts",
+      "description": "sự kiện",
+      "line": 71
+    },
+    {
+      "file": "src/columnresizing.ts",
+      "description": "xử lý giao diện",
+      "line": 89
+    }
+  ]
+}

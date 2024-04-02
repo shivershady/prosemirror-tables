@@ -42,6 +42,7 @@ const schema = new Schema({
             return dom.style.backgroundColor || null;
           },
           setDOMAttr(value, attrs) {
+            console.log('🚀 ~ setDOMAttr ~ attrs:', attrs);
             if (value)
               attrs.style = (attrs.style || '') + `background-color: ${value};`;
           },

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "handleMouseMove",
+  "steps": [
+    {
+      "file": "src/columnresizing.ts",
+      "description": "get pluginState",
+      "line": 134
+    },
+    {
+      "file": "src/columnresizing.ts",
+      "description": "get target\r\n",
+      "line": 138
+    },
+    {
+      "file": "src/columnresizing.ts",
+      "description": "edgeCell()",
+      "line": 255
+    },
+    {
+      "file": "src/util.ts",
+      "description": "cellAround()",
+      "line": 32
+    },
+    {
+      "file": "src/columnresizing.ts",
+      "description": "check cell",
+      "line": 148
+    },
+    {
+      "file": "src/columnresizing.ts",
+      "description": "update giao diện",
+      "line": 289
+    },
+    {
+      "file": "src/columnresizing.ts",
+      "description": "check pluginState",
+      "line": 90
+    },
+    {
+      "file": "src/columnresizing.ts",
+      "description": "render giao diện",
+      "line": 356
+    }
+  ]
+}

@@ -1,11 +1,11 @@
 // Various helper function for working with tables
 
-import { EditorState, NodeSelection, PluginKey } from 'prosemirror-state';
-
 import { Attrs, Node, ResolvedPos } from 'prosemirror-model';
+import { EditorState, NodeSelection, PluginKey } from 'prosemirror-state';
+import { Rect, TableMap } from './tablemap';
+
 import { CellSelection } from './cellselection';
 import { tableNodeTypes } from './schema';
-import { Rect, TableMap } from './tablemap';
 
 /**
  * @public
@@ -19,6 +19,7 @@ export interface CellAttrs {
   colspan: number;
   rowspan: number;
   colwidth: number[] | null;
+  // rowheight: number[] | null;
 }
 
 /**
@@ -30,9 +31,11 @@ export const tableEditingKey = new PluginKey<number>('selectingCells');
  * @public
  */
 export function cellAround($pos: ResolvedPos): ResolvedPos | null {
-  for (let d = $pos.depth - 1; d > 0; d--)
-    if ($pos.node(d).type.spec.tableRole == 'row')
+  for (let d = $pos.depth - 1; d > 0; d--) {
+    if ($pos.node(d).type.spec.tableRole == 'row') {
       return $pos.node(0).resolve($pos.before(d + 1));
+    }
+  }
   return null;
 }
 

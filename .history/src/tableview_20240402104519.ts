@@ -11,19 +11,19 @@ export class TableView implements NodeView {
   public colgroup: HTMLTableColElement;
   public contentDOM: HTMLTableSectionElement;
 
-  constructor(public node: Node, public cellMin: number) {
+  constructor(public node: Node, public cellMinWidth: number) {
     this.dom = document.createElement('div');
     this.dom.className = 'tableWrapper';
     this.table = this.dom.appendChild(document.createElement('table'));
     this.colgroup = this.table.appendChild(document.createElement('colgroup'));
-    updateColumnsOnResize(node, this.colgroup, this.table, cellMin);
+    updateColumnsOnResize(node, this.colgroup, this.table, cellMinWidth);
     this.contentDOM = this.table.appendChild(document.createElement('tbody'));
   }
 
   update(node: Node): boolean {
     if (node.type != this.node.type) return false;
     this.node = node;
-    updateColumnsOnResize(node, this.colgroup, this.table, this.cellMin);
+    updateColumnsOnResize(node, this.colgroup, this.table, this.cellMinWidth);
     return true;
   }
   ignoreMutation(record: MutationRecord): boolean {
@@ -63,7 +63,7 @@ export function updateColumnsOnResize(
           cssWidth;
       } else {
         if (nextDOM.style.width != cssWidth) nextDOM.style.width = cssWidth;
-        nextDOM = nextDOM.nextSibling as HTMLElement;
+        // nextDOM = nextDOM.nextSibling as HTMLElement;
       }
     }
   }

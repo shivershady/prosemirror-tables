@@ -1,15 +1,20 @@
 import { Attrs, Node as ProsemirrorNode } from 'prosemirror-model';
-import { EditorState, Plugin, PluginKey, Transaction } from 'prosemirror-state';
+import { CellAttrs, cellAround, pointsAtCell } from './util';
 import {
   Decoration,
   DecorationSet,
   EditorView,
   NodeView,
 } from 'prosemirror-view';
-import { tableNodeTypes } from './schema';
+import { EditorState, Plugin, PluginKey, Transaction } from 'prosemirror-state';
+import {
+  TableView,
+  updateColumnsOnResize,
+  updateRowsOnResize,
+} from './tableview';
+
 import { TableMap } from './tablemap';
-import { TableView, updateColumnsOnResize } from './tableview';
-import { cellAround, CellAttrs, pointsAtCell } from './util';
+import { tableNodeTypes } from './schema';
 
 /**
  * @public
@@ -22,12 +27,12 @@ export const columnResizingPluginKey = new PluginKey<ResizeState>(
  * @public
  */
 export type ColumnResizingOptions = {
-  handleWidth?: number;
-  cellMinWidth?: number;
+  minSize?: number;
+  cellMin?: number;
   lastColumnResizable?: boolean;
   View?: new (
     node: ProsemirrorNode,
-    cellMinWidth: number,
+    cellMin: number,
     view: EditorView,
   ) => NodeView;
 };
@@ -35,14 +40,19 @@ export type ColumnResizingOptions = {
 /**
  * @public
  */
-export type Dragging = { startX: number; startWidth: number };
+export type Dragging = { startPosition: number; startDimension: number };
+
+/**
+ * @public
+ */
+type typePositionCell = 'row' | 'col' | undefined;
 
 /**
  * @public
  */
 export function columnResizing({
-  handleWidth = 5,
-  cellMinWidth = 25,
+  minSize = 5,
+  cellMin = 25,
   View = TableView,
   lastColumnResizable = true,
 }: ColumnResizingOptions = {}): Plugin {
@@ -52,8 +62,8 @@ export function columnResizing({
       init(_, state) {
         plugin.spec!.props!.nodeViews![
           tableNodeTypes(state.schema).table.name
-        ] = (node, view) => new View(node, cellMinWidth, view);
-        return new ResizeState(-1, false);
+        ] = (node, view) => new View(node, cellMin, view);
+        return new ResizeState(-1, false, undefined);
       },
       apply(tr, prev) {
         return prev.apply(tr);
@@ -63,32 +73,30 @@ export function columnResizing({
       attributes: (state): Record<string, string> => {
         const pluginState = columnResizingPluginKey.getState(state);
         return pluginState && pluginState.activeHandle > -1
-          ? { class: 'resize-cursor' }
+          ? { class: `${pluginState.position}-resize-cursor` }
           : {};
       },
 
       handleDOMEvents: {
         mousemove: (view, event) => {
-          handleMouseMove(
-            view,
-            event,
-            handleWidth,
-            cellMinWidth,
-            lastColumnResizable,
-          );
+          handleMouseMove(view, event, minSize, cellMin, lastColumnResizable);
         },
         mouseleave: (view) => {
           handleMouseLeave(view);
         },
         mousedown: (view, event) => {
-          handleMouseDown(view, event, cellMinWidth);
+          handleMouseDown(view, event, cellMin);
         },
       },
 
       decorations: (state) => {
         const pluginState = columnResizingPluginKey.getState(state);
         if (pluginState && pluginState.activeHandle > -1) {
-          return handleDecorations(state, pluginState.activeHandle);
+          return handleDecorations(
+            state,
+            pluginState.activeHandle,
+            pluginState.position,
+          );
         }
       },
 
@@ -102,23 +110,35 @@ export function columnResizing({
  * @public
  */
 export class ResizeState {
-  constructor(public activeHandle: number, public dragging: Dragging | false) {}
+  constructor(
+    public activeHandle: number,
+    public dragging: Dragging | false,
+    public position: typePositionCell,
+  ) {}
 
   apply(tr: Transaction): ResizeState {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const state = this;
     const action = tr.getMeta(columnResizingPluginKey);
+
     if (action && action.setHandle != null)
-      return new ResizeState(action.setHandle, false);
+      return new ResizeState(action.setHandle, false, action.setPosition);
+
     if (action && action.setDragging !== undefined)
-      return new ResizeState(state.activeHandle, action.setDragging);
+      return new ResizeState(
+        state.activeHandle,
+        action.setDragging,
+        action.setPosition,
+      );
+
     if (state.activeHandle > -1 && tr.docChanged) {
       let handle = tr.mapping.map(state.activeHandle, -1);
       if (!pointsAtCell(tr.doc.resolve(handle))) {
         handle = -1;
       }
-      return new ResizeState(handle, state.dragging);
+      return new ResizeState(handle, state.dragging, action.setPosition);
     }
+
     return state;
   }
 }
@@ -126,8 +146,8 @@ export class ResizeState {
 function handleMouseMove(
   view: EditorView,
   event: MouseEvent,
-  handleWidth: number,
-  cellMinWidth: number,
+  minSize: number,
+  cellMin: number,
   lastColumnResizable: boolean,
 ): void {
   const pluginState = columnResizingPluginKey.getState(view.state);
@@ -136,12 +156,22 @@ function handleMouseMove(
   if (!pluginState.dragging) {
     const target = domCellAround(event.target as HTMLElement);
     let cell = -1;
+    let positionCell: typePositionCell;
     if (target) {
-      const { left, right } = target.getBoundingClientRect();
-      if (event.clientX - left <= handleWidth)
-        cell = edgeCell(view, event, 'left', handleWidth);
-      else if (right - event.clientX <= handleWidth)
-        cell = edgeCell(view, event, 'right', handleWidth);
+      const { left, right, top, bottom } = target.getBoundingClientRect();
+      if (event.clientX - left <= minSize) {
+        positionCell = 'col';
+        cell = edgeCell(view, event, 'left', minSize);
+      } else if (right - event.clientX <= minSize) {
+        positionCell = 'col';
+        cell = edgeCell(view, event, 'right', minSize);
+      } else if (top - event.clientY >= -minSize) {
+        positionCell = 'row';
+        cell = edgeCell(view, event, 'top', minSize);
+      } else if (event.clientY - bottom >= -minSize) {
+        positionCell = 'row';
+        cell = edgeCell(view, event, 'bottom', minSize);
+      }
     }
 
     if (cell != pluginState.activeHandle) {
@@ -160,7 +190,7 @@ function handleMouseMove(
         }
       }
 
-      updateHandle(view, cell);
+      updateHandle(view, cell, positionCell);
     }
   }
 }
@@ -168,13 +198,13 @@ function handleMouseMove(
 function handleMouseLeave(view: EditorView): void {
   const pluginState = columnResizingPluginKey.getState(view.state);
   if (pluginState && pluginState.activeHandle > -1 && !pluginState.dragging)
-    updateHandle(view, -1);
+    updateHandle(view, -1, undefined);
 }
 
 function handleMouseDown(
   view: EditorView,
   event: MouseEvent,
-  cellMinWidth: number,
+  cellMin: number,
 ): boolean {
   const win = view.dom.ownerDocument.defaultView ?? window;
 
@@ -184,39 +214,63 @@ function handleMouseDown(
 
   const cell = view.state.doc.nodeAt(pluginState.activeHandle)!;
   const width = currentColWidth(view, pluginState.activeHandle, cell.attrs);
+  const height = currentColHeight(view, pluginState.activeHandle, cell.attrs);
+  const startCoord =
+    pluginState.position === 'col' ? event.clientX : event.clientY;
+  const startDimension = pluginState.position === 'col' ? width : height;
   view.dispatch(
     view.state.tr.setMeta(columnResizingPluginKey, {
-      setDragging: { startX: event.clientX, startWidth: width },
+      setDragging: { startPosition: startCoord, startDimension },
+      setPosition: pluginState.position,
     }),
   );
 
-  function finish(event: MouseEvent) {
-    win.removeEventListener('mouseup', finish);
-    win.removeEventListener('mousemove', move);
-    const pluginState = columnResizingPluginKey.getState(view.state);
-    if (pluginState?.dragging) {
-      updateColumnWidth(
-        view,
-        pluginState.activeHandle,
-        draggedWidth(pluginState.dragging, event, cellMinWidth),
-      );
-      view.dispatch(
-        view.state.tr.setMeta(columnResizingPluginKey, { setDragging: null }),
-      );
-    }
-  }
+  // function finish(event: MouseEvent) {
+  //   win.removeEventListener('mouseup', finish);
+  //   win.removeEventListener('mousemove', move);
+  //   const pluginState = columnResizingPluginKey.getState(view.state);
+  //   if (pluginState?.dragging) {
+  //     updateColumnWidth(
+  //       view,
+  //       pluginState.activeHandle,
+  //       draggedDimension(
+  //         pluginState.position,
+  //         pluginState.dragging,
+  //         event,
+  //         cellMin,
+  //       ),
+  //     );
+  //     view.dispatch(
+  //       view.state.tr.setMeta(columnResizingPluginKey, {
+  //         setDragging: null,
+  //       }),
+  //     );
+  //   }
+  // }
 
   function move(event: MouseEvent): void {
-    if (!event.which) return finish(event);
+    // if (!event.which) return finish(event);
     const pluginState = columnResizingPluginKey.getState(view.state);
     if (!pluginState) return;
     if (pluginState.dragging) {
-      const dragged = draggedWidth(pluginState.dragging, event, cellMinWidth);
-      displayColumnWidth(view, pluginState.activeHandle, dragged, cellMinWidth);
+      const dragged = draggedDimension(
+        pluginState.position,
+        pluginState.dragging,
+        event,
+        cellMin,
+      );
+
+      displayColumnDimension(
+        view,
+        pluginState.position,
+        pluginState.activeHandle,
+        dragged,
+        cellMin,
+      );
     }
   }
 
-  win.addEventListener('mouseup', finish);
+  // win.addEventListener('mouseup', finish);
   win.addEventListener('mousemove', move);
   event.preventDefault();
   return true;
@@ -242,6 +296,26 @@ function currentColWidth(
   return domWidth / parts;
 }
 
+function currentColHeight(
+  view: EditorView,
+  cellPos: number,
+  { rowspan, rowheight }: Attrs,
+): number {
+  const height = rowheight && rowheight[rowheight.length - 1];
+  if (height) return height;
+  const dom = view.domAtPos(cellPos);
+  const node = dom.node.childNodes[dom.offset] as HTMLElement;
+  let domHeight = node.offsetHeight,
+    parts = rowspan;
+  if (rowheight)
+    for (let i = 0; i < rowspan; i++)
+      if (rowheight[i]) {
+        domHeight -= rowheight[i];
+        parts--;
+      }
+  return domHeight / parts;
+}
+
 function domCellAround(target: HTMLElement | null): HTMLElement | null {
   while (target && target.nodeName != 'TD' && target.nodeName != 'TH')
     target =
@@ -254,40 +328,55 @@ function domCellAround(target: HTMLElement | null): HTMLElement | null {
 function edgeCell(
   view: EditorView,
   event: MouseEvent,
-  side: 'left' | 'right',
-  handleWidth: number,
+  side: 'left' | 'right' | 'top' | 'bottom',
+  minSize: number,
 ): number {
   // posAtCoords returns inconsistent positions when cursor is moving
   // across a collapsed table border. Use an offset to adjust the
   // target viewport coordinates away from the table border.
-  const offset = side == 'right' ? -handleWidth : handleWidth;
+  const offset = side == 'right' || side == 'bottom' ? -minSize : minSize;
   const found = view.posAtCoords({
-    left: event.clientX + offset,
-    top: event.clientY,
+    left: event.clientX + (side === 'left' || side === 'right' ? offset : 0),
+    top: event.clientY + (side === 'top' || side === 'bottom' ? offset : 0),
   });
   if (!found) return -1;
   const { pos } = found;
   const $cell = cellAround(view.state.doc.resolve(pos));
   if (!$cell) return -1;
-  if (side == 'right') return $cell.pos;
+  if (side === 'right' || side === 'bottom') return $cell.pos;
   const map = TableMap.get($cell.node(-1)),
     start = $cell.start(-1);
   const index = map.map.indexOf($cell.pos - start);
-  return index % map.width == 0 ? -1 : start + map.map[index - 1];
+  if (side === 'top') {
+    return index < map.width ? -1 : start + map.map[index - map.width];
+  } else {
+    return index % map.width === 0 ? -1 : start + map.map[index - 1];
+  }
 }
 
-function draggedWidth(
+function draggedDimension(
+  position: typePositionCell,
   dragging: Dragging,
   event: MouseEvent,
-  cellMinWidth: number,
+  cellMin: number,
 ): number {
-  const offset = event.clientX - dragging.startX;
-  return Math.max(cellMinWidth, dragging.startWidth + offset);
+  const offset =
+    position == 'col'
+      ? event.clientX - dragging.startPosition
+      : event.clientY - dragging.startPosition;
+  return Math.max(cellMin, dragging.startDimension + offset);
 }
 
-function updateHandle(view: EditorView, value: number): void {
+function updateHandle(
+  view: EditorView,
+  value: number,
+  positionCell: typePositionCell,
+): void {
   view.dispatch(
-    view.state.tr.setMeta(columnResizingPluginKey, { setHandle: value }),
+    view.state.tr.setMeta(columnResizingPluginKey, {
+      setHandle: value,
+      setPosition: positionCell,
+    }),
   );
 }
 
@@ -320,11 +409,12 @@ function updateColumnWidth(
   if (tr.docChanged) view.dispatch(tr);
 }
 
-function displayColumnWidth(
+function displayColumnDimension(
   view: EditorView,
+  position: typePositionCell,
   cell: number,
-  width: number,
-  cellMinWidth: number,
+  dragged: number,
+  cellMin: number,
 ): void {
   const $cell = view.state.doc.resolve(cell);
   const table = $cell.node(-1),
@@ -333,19 +423,27 @@ function displayColumnWidth(
     TableMap.get(table).colCount($cell.pos - start) +
     $cell.nodeAfter!.attrs.colspan -
     1;
+  const row =
+    TableMap.get(table).rowCount($cell.pos - start) +
+    $cell.nodeAfter!.attrs.rowspan;
+
   let dom: Node | null = view.domAtPos($cell.start(-1)).node;
   while (dom && dom.nodeName != 'TABLE') {
     dom = dom.parentNode;
   }
   if (!dom) return;
-  updateColumnsOnResize(
-    table,
-    dom.firstChild as HTMLTableColElement,
-    dom as HTMLTableElement,
-    cellMinWidth,
-    col,
-    width,
-  );
+  if (position === 'col') {
+    updateColumnsOnResize(
+      table,
+      dom.firstChild as HTMLTableColElement,
+      dom as HTMLTableElement,
+      cellMin,
+      col,
+      dragged,
+    );
+  } else if (position === 'row') {
+    updateRowsOnResize(table, dom as HTMLTableElement, cellMin, row, dragged);
+  }
 }
 
 function zeroes(n: number): 0[] {
@@ -355,7 +453,8 @@ function zeroes(n: number): 0[] {
 export function handleDecorations(
   state: EditorState,
   cell: number,
-): DecorationSet {
+  position: typePositionCell,
+): DecorationSet | undefined {
   const decorations = [];
   const $cell = state.doc.resolve(cell);
   const table = $cell.node(-1);
@@ -363,23 +462,44 @@ export function handleDecorations(
     return DecorationSet.empty;
   }
   const map = TableMap.get(table);
-  const start = $cell.start(-1);
-  const col = map.colCount($cell.pos - start) + $cell.nodeAfter!.attrs.colspan;
-  for (let row = 0; row < map.height; row++) {
-    const index = col + row * map.width - 1;
-    // For positions that have either a different cell or the end
-    // of the table to their right, and either the top of the table or
-    // a different cell above them, add a decoration
-    if (
-      (col == map.width || map.map[index] != map.map[index + 1]) &&
-      (row == 0 || map.map[index] != map.map[index - map.width])
-    ) {
-      const cellPos = map.map[index];
-      const pos = start + cellPos + table.nodeAt(cellPos)!.nodeSize - 1;
-      const dom = document.createElement('div');
-      dom.className = 'column-resize-handle';
-      decorations.push(Decoration.widget(pos, dom));
+  if (position === 'col') {
+    const start = $cell.start(-1);
+    const col =
+      map.colCount($cell.pos - start) + $cell.nodeAfter!.attrs.colspan;
+    for (let row = 0; row < map.height; row++) {
+      const index = col + row * map.width - 1;
+      // For positions that have either a different cell or the end
+      // of the table to their right, and either the top of the table or
+      // a different cell above them, add a decoration
+      if (
+        (col == map.width || map.map[index] != map.map[index + 1]) &&
+        (row == 0 || map.map[index] != map.map[index - map.width])
+      ) {
+        const cellPos = map.map[index];
+        const pos = start + cellPos + table.nodeAt(cellPos)!.nodeSize - 1;
+        const dom = document.createElement('div');
+        dom.className = 'column-resize-handle';
+        decorations.push(Decoration.widget(pos, dom));
+      }
     }
+    return DecorationSet.create(state.doc, decorations);
+  } else if (position === 'row') {
+    const start = $cell.start(-1);
+    const row =
+      map.rowCount($cell.pos - start) + $cell.nodeAfter!.attrs.rowspan;
+    for (let col = 0; col < map.width; col++) {
+      const index = (row - 1) * map.width + col;
+      if (
+        (row == map.height || map.map[index] != map.map[index + map.width]) &&
+        (col == 0 || map.map[index] != map.map[index - 1])
+      ) {
+        const cellPos = map.map[index];
+        const pos = start + cellPos + table.nodeAt(cellPos)!.nodeSize - 1;
+        const dom = document.createElement('div');
+        dom.className = 'row-resize-handle';
+        decorations.push(Decoration.widget(pos, dom));
+      }
+    }
+    return DecorationSet.create(state.doc, decorations);
   }
-  return DecorationSet.create(state.doc, decorations);
 }

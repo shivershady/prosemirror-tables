@@ -4,8 +4,6 @@
 // transaction, the shapes of tables are normalized to be rectangular
 // and not contain overlapping cells.
 
-import { Plugin } from 'prosemirror-state';
-
 import { drawCellSelection, normalizeSelection } from './cellselection';
 import { fixTables, fixTablesKey } from './fixtables';
 import {
@@ -14,6 +12,8 @@ import {
   handlePaste,
   handleTripleClick,
 } from './input';
+
+import { Plugin } from 'prosemirror-state';
 import { tableEditingKey } from './util';
 
 export { CellBookmark, CellSelection } from './cellselection';
