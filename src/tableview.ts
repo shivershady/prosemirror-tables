@@ -1,4 +1,5 @@
-import { CellAttrs } from './util';
+import { CellAttrs, RowAttrs } from './util';
+
 import { Node } from 'prosemirror-model';
 import { NodeView } from 'prosemirror-view';
 
@@ -85,6 +86,7 @@ export function updateColumnsOnResize(
 
 export function updateRowsOnResize(
   node: Node,
+  contentDOM: HTMLTableSectionElement,
   table: HTMLTableElement,
   cellMinHeight: number,
   overrideRow?: number,
@@ -92,9 +94,9 @@ export function updateRowsOnResize(
 ): void {
   let totalHeight = 0;
   let fixedHeight = true;
-  const row = node.firstChild;
-  if (!row) return;
-  if (overrideRow) {
-    table.rows[overrideRow - 1].style.height = overrideValue + 'px';
-  }
+  let nextDOM = contentDOM.firstChild as HTMLElement;
+  const col = node;
+  console.log('🚀 ~ col:', col);
+  if (!col) return;
+  const { rowheight } = col.child(overrideRow).attrs as RowAttrs;
 }

@@ -19,7 +19,12 @@ export interface CellAttrs {
   colspan: number;
   rowspan: number;
   colwidth: number[] | null;
-  // rowheight: number[] | null;
+}
+/**
+ * @public
+ */
+export interface RowAttrs {
+  rowheight: number | null;
 }
 
 /**
@@ -167,6 +172,11 @@ export function removeColSpan(attrs: CellAttrs, pos: number, n = 1): CellAttrs {
     result.colwidth.splice(pos, n);
     if (!result.colwidth.some((w) => w > 0)) result.colwidth = null;
   }
+  //* if (result.rowheight) {
+  //*   result.rowheight = result.rowheight.slice();
+  //*   result.rowheight.splice(pos, n);
+  //*   if (!result.rowheight.some((w) => w > 0)) result.rowheight = null;
+  //* }
   return result;
 }
 
@@ -179,6 +189,11 @@ export function addColSpan(attrs: CellAttrs, pos: number, n = 1): Attrs {
     result.colwidth = result.colwidth.slice();
     for (let i = 0; i < n; i++) result.colwidth.splice(pos, 0, 0);
   }
+  //* if (result.rowheight) {
+  //*   result.rowheight = result.rowheight.slice();
+  //*   for (let i = 0; i < n; i++) result.rowheight.splice(pos, 0, 0);
+  //* }
+
   return result;
 }
 

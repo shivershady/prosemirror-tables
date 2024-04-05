@@ -136,9 +136,8 @@ export class ResizeState {
       if (!pointsAtCell(tr.doc.resolve(handle))) {
         handle = -1;
       }
-      return new ResizeState(handle, state.dragging, action.setPosition);
+      return new ResizeState(handle, state.dragging, undefined);
     }
-
     return state;
   }
 }
@@ -225,31 +224,32 @@ function handleMouseDown(
     }),
   );
 
-  // function finish(event: MouseEvent) {
-  //   win.removeEventListener('mouseup', finish);
-  //   win.removeEventListener('mousemove', move);
-  //   const pluginState = columnResizingPluginKey.getState(view.state);
-  //   if (pluginState?.dragging) {
-  //     updateColumnWidth(
-  //       view,
-  //       pluginState.activeHandle,
-  //       draggedDimension(
-  //         pluginState.position,
-  //         pluginState.dragging,
-  //         event,
-  //         cellMin,
-  //       ),
-  //     );
-  //     view.dispatch(
-  //       view.state.tr.setMeta(columnResizingPluginKey, {
-  //         setDragging: null,
-  //       }),
-  //     );
-  //   }
-  // }
+  function finish(event: MouseEvent) {
+    win.removeEventListener('mouseup', finish);
+    win.removeEventListener('mousemove', move);
+    const pluginState = columnResizingPluginKey.getState(view.state);
+    if (pluginState?.dragging) {
+      updateColumnWidth(
+        view,
+        pluginState.activeHandle,
+        draggedDimension(
+          pluginState.position,
+          pluginState.dragging,
+          event,
+          cellMin,
+        ),
+      );
+      view.dispatch(
+        view.state.tr.setMeta(columnResizingPluginKey, {
+          setDragging: null,
+          setPosition: undefined,
+        }),
+      );
+    }
+  }
 
   function move(event: MouseEvent): void {
-    // if (!event.which) return finish(event);
+    if (!event.which) return finish(event);
     const pluginState = columnResizingPluginKey.getState(view.state);
     if (!pluginState) return;
     if (pluginState.dragging) {
@@ -270,7 +270,7 @@ function handleMouseDown(
     }
   }
 
-  // win.addEventListener('mouseup', finish);
+  win.addEventListener('mouseup', finish);
   win.addEventListener('mousemove', move);
   event.preventDefault();
   return true;
@@ -425,7 +425,8 @@ function displayColumnDimension(
     1;
   const row =
     TableMap.get(table).rowCount($cell.pos - start) +
-    $cell.nodeAfter!.attrs.rowspan;
+    $cell.nodeAfter!.attrs.rowspan -
+    1;
 
   let dom: Node | null = view.domAtPos($cell.start(-1)).node;
   while (dom && dom.nodeName != 'TABLE') {
@@ -442,7 +443,14 @@ function displayColumnDimension(
       dragged,
     );
   } else if (position === 'row') {
-    updateRowsOnResize(table, dom as HTMLTableElement, cellMin, row, dragged);
+    updateRowsOnResize(
+      table,
+      dom.lastChild as HTMLTableSectionElement,
+      dom as HTMLTableElement,
+      cellMin,
+      row,
+      dragged,
+    );
   }
 }
 

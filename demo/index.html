@@ -45,18 +45,31 @@
   <p>The table:</p>
   <table>
     <tr>
-      <th colspan="3" data-colwidth="100,0,0">Wide header</th>
+      <!-- <th colspan="4" data-colwidth="100,0,0,0">Wide header</th> -->
+      <th>Wide header</th>
+      <th>Wide header</th>
+      <th>Wide header</th>
+      <th>Wide header</th>
+      <th>Wide header</th>
     </tr>
-    <tr>
+    <tr data-rowheight="50">
       <td>One</td>
-      <td>Two</td>
-      <td>Three</td>
+      <!-- <td>One</td> -->
+      <td colspan="3" data-colwidth="100,150,0">Two</td>
+      <td rowspan="3">Three</td>
     </tr>
     <tr>
       <td>Four</td>
+      <td>Four</td>
+      <td>Five</td>
+      <td rowspan="2">Six</td>
+    </tr>
+    <!-- <tr>
+      <td>Four</td>
+      <td>Four</td>
       <td>Five</td>
       <td>Six</td>
-    </tr>
+    </tr> -->
   </table>
 </div>
 

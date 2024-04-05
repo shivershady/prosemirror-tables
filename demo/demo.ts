@@ -47,6 +47,18 @@ const schema = new Schema({
           },
         },
       },
+      rowContent: 'block+',
+      rowAttributes: {
+        rowheight: {
+          default: 60,
+          getFromDOM(dom) {
+            return dom.getAttribute('rowheight') || null;
+          },
+          setDOMAttr(value, attrs) {
+            if (value) attrs.rowheight = value;
+          },
+        },
+      },
     }),
   ),
   marks: baseSchema.spec.marks,

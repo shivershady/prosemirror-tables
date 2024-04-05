@@ -17,6 +17,7 @@ import { CellAttrs } from './util';
  * @public
  */
 export type ColWidths = number[];
+export type RowHeights = number;
 
 /**
  * @public
@@ -27,6 +28,11 @@ export type Problem =
       pos: number;
       colwidth: ColWidths;
     }
+  //* | {
+  //*     type: 'rowheight mismatch';
+  //*     pos: number;
+  //*     rowheight: RowHeights;
+  //*   }
   | {
       type: 'collision';
       pos: number;
@@ -250,6 +256,7 @@ function computeMap(table: Node): TableMap {
   let mapPos = 0;
   let problems: Problem[] | null = null;
   const colWidths: ColWidths = [];
+  const rowHeights: RowHeights = 0;
   for (let i = 0, e = width * height; i < e; i++) map[i] = 0;
 
   for (let row = 0, pos = 0; row < height; row++) {
@@ -308,14 +315,12 @@ function computeMap(table: Node): TableMap {
 
   const tableMap = new TableMap(width, height, map, problems);
   let badWidths = false;
-
   // For columns that have defined widths, but whose widths disagree
   // between rows, fix up the cells whose width doesn't match the
   // computed one.
   for (let i = 0; !badWidths && i < colWidths.length; i += 2)
     if (colWidths[i] != null && colWidths[i + 1] < height) badWidths = true;
   if (badWidths) findBadColWidths(tableMap, colWidths, table);
-
   return tableMap;
 }
 
@@ -371,6 +376,7 @@ function findBadColWidths(
       )
         (updated || (updated = freshColWidth(attrs)))[j] = colWidth;
     }
+
     if (updated)
       map.problems.unshift({
         type: 'colwidth mismatch',
@@ -380,9 +386,48 @@ function findBadColWidths(
   }
 }
 
+//* function findBadRowHeights(map: TableMap, rowHeights: RowHeights, table: Node) {
+//*   if (!map.problems) map.problems = [];
+//*   const seen: Record<number, boolean> = {};
+//*   for (let i = 0; i < map.map.length; i++) {
+//*     const pos = map.map[i];
+//*     if (seen[pos]) continue;
+//*     seen[pos] = true;
+//*     const node = table.nodeAt(pos);
+//*     if (!node) {
+//*       throw new RangeError(`No cell with offset ${pos} found`);
+//*     }
+//*     let updated = null;
+//*     const attrs = node.attrs as CellAttrs;
+//*     for (let j = 0; j < attrs.rowspan; j++) {
+//*       const row = (i + j) % map.height;
+//*       const rowHeight = rowHeights[row * 2];
+//*       if (
+//*         rowHeight != null &&
+//*         (!attrs.rowheight || attrs.rowheight[j] != rowHeight)
+//*       )
+//*         (updated || (updated = freshRowHeight(attrs)))[j] = rowHeight;
+//*     }
+//*     if (updated) {
+//*       map.problems.unshift({
+//*         type: 'rowheight mismatch',
+//*         pos,
+//*         rowheight: updated,
+//*       });
+//*     }
+//*   }
+//* }
+
 function freshColWidth(attrs: Attrs): ColWidths {
   if (attrs.colwidth) return attrs.colwidth.slice();
   const result: ColWidths = [];
   for (let i = 0; i < attrs.colspan; i++) result.push(0);
   return result;
 }
+
+//* function freshRowHeight(attrs: Attrs): RowHeights {
+//*   if (attrs.rowheight) return attrs.rowheight.slice();
+//*   const result: RowHeights = [];
+//*   for (let i = 0; i < attrs.rowspan; i++) result.push(0);
+//*   return result;
+//* }

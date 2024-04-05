@@ -3,11 +3,12 @@
 // rowspans) and that each row has the same width. Uses the problems
 // reported by `TableMap`.
 
-import { Node } from 'prosemirror-model';
-import { EditorState, PluginKey, Transaction } from 'prosemirror-state';
-import { tableNodeTypes, TableRole } from './schema';
-import { TableMap } from './tablemap';
 import { CellAttrs, removeColSpan } from './util';
+import { EditorState, PluginKey, Transaction } from 'prosemirror-state';
+import { TableRole, tableNodeTypes } from './schema';
+
+import { Node } from 'prosemirror-model';
+import { TableMap } from './tablemap';
 
 /**
  * @public
@@ -65,8 +66,9 @@ export function fixTables(
       tr = fixTable(state, node, pos, tr);
   };
   if (!oldState) state.doc.descendants(check);
-  else if (oldState.doc != state.doc)
+  else if (oldState.doc != state.doc) {
     changedDescendants(oldState.doc, state.doc, 0, check);
+  }
   return tr;
 }
 
